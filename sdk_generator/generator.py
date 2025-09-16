@@ -6,7 +6,8 @@ from openapi_python_generator.common import HTTPLibrary
 
 
 def generate_sdk(source, output, constants_template_path=None):
-    path = Path.cwd() / Path("templates")
+    path = Path(__file__).parent / Path("templates")
+    print(path)
 
     if constants_template_path is not None:
         constants_path = Path(constants_template_path)

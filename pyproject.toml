@@ -4,12 +4,18 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "sdk-generator"
-version = "1.0.0"
+version = "1.0.2"
 description = "A Python SDK generator from OpenAPI specifications."
 dynamic = ["dependencies"]
 authors = [{ name = "Maxime Toussaint", email = "maxime.toussaint@tlmgo.com" }]
 readme = { file = "README.md", content-type = "text/markdown" }
 keywords = ["sdk", "api", "openapi", "generator", "codegen"]
 
+[project.scripts]
+sdk-generator = "sdk_generator.__main__:main"
+
 [tool.setuptools.dynamic]
 dependencies = {file = ["requirements.txt"]}
+
+[tool.setuptools.packages.find]
+include = ["sdk_generator*"]

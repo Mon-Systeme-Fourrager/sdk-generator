@@ -43,7 +43,7 @@ class TestCLICommands:
     def test_cli_help_command(self):
         """Test CLI help command."""
         result = subprocess.run(
-            [sys.executable, "-m", "sdk-generator", "--help"],
+            [sys.executable, "-m", "sdk_generator", "--help"],
             capture_output=True,
             text=True,
             cwd=self.original_cwd,
@@ -63,7 +63,7 @@ class TestCLICommands:
             [
                 sys.executable,
                 "-m",
-                "sdk-generator",
+                "sdk_generator",
                 self.spec_file,
                 output_dir,
                 self.constants_file,
@@ -96,7 +96,7 @@ class TestCLICommands:
             [
                 sys.executable,
                 "-m",
-                "sdk-generator",
+                "sdk_generator",
                 nonexistent_spec,
                 output_dir,
                 self.constants_file,
@@ -131,7 +131,7 @@ class TestCLICommands:
             [
                 sys.executable,
                 "-m",
-                "sdk-generator",
+                "sdk_generator",
                 invalid_spec_file,
                 output_dir,
                 self.constants_file,
@@ -156,7 +156,7 @@ class TestCLICommands:
             [
                 sys.executable,
                 "-m",
-                "sdk-generator",
+                "sdk_generator",
                 self.spec_file,
                 nested_output,
                 self.constants_file,
@@ -262,7 +262,7 @@ class TestCLIOutput:
             [
                 sys.executable,
                 "-m",
-                "sdk-generator",
+                "sdk_generator",
                 self.spec_file,
                 output_dir,
                 self.constants_file,
@@ -303,7 +303,7 @@ class TestCLIOutput:
             [
                 sys.executable,
                 "-m",
-                "sdk-generator",
+                "sdk_generator",
                 self.spec_file,
                 output_dir,
                 self.constants_file,

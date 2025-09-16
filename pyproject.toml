@@ -1,0 +1,15 @@
+[build-system]
+requires = ["setuptools>=61.0.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "sdk-generator"
+version = "1.0.0"
+description = "A Python SDK generator from OpenAPI specifications."
+dynamic = ["dependencies"]
+authors = [{ name = "Maxime Toussaint", email = "maxime.toussaint@tlmgo.com" }]
+readme = { file = "README.md", content-type = "text/markdown" }
+keywords = ["sdk", "api", "openapi", "generator", "codegen"]
+
+[tool.setuptools.dynamic]
+dependencies = {file = ["requirements.txt"]}

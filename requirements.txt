@@ -1,0 +1,4 @@
+openapi-python-generator
+pydantic
+requests
+click

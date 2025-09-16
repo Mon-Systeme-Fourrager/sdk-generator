@@ -1,0 +1,12 @@
+from typing import Any
+import {{ library_import }}
+
+{% if use_orjson %}
+import orjson
+from uuid import UUID
+{% endif %}
+
+from ..models import *
+from ..api_config import APIConfig, HTTPException
+
+{{ content | safe}}

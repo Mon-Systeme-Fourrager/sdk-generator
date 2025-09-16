@@ -1,0 +1,60 @@
+{% if env_token_name is not none %}import os{% endif %}
+from base64 import b64encode
+from pydantic import BaseModel, model_validator
+from pydantic_core import PydanticCustomError
+{% import "constants.jinja2" as constants %}
+{% set api_config_init_fields = constants.api_config_init_fields %}
+{% set api_config_additional_headers = constants.api_config_additional_headers %}
+
+class APIConfig(BaseModel):
+    model_config = {
+        "validate_assignment": True
+    }
+
+    base_path: str = {% if servers|length > 0 %} '{{ servers[0].url }}' {% else %} 'NO SERVER' {% endif %}
+
+    verify: bool | str = True
+
+    {% for field, field_type in api_config_init_fields.items() %}
+{{ field }}: {{ field_type }}
+    {% endfor %}
+
+    @model_validator(mode="before")
+    @classmethod
+    def validate_{{ api_config_init_fields | map("trim") | list | join("_") }}(cls, data) -> str:
+        missing_fields = []
+        for field in {{ api_config_init_fields | list | safe }}:
+            if not data.get(field):
+                missing_fields.append(field)
+
+        if missing_fields:
+            raise PydanticCustomError(
+                "missing_fields",
+                f"{{ api_config_init_fields | map("trim") | list | join(", ") }} are required in the APIConfig. Currently missing: {', '.join(missing_fields)}. "
+                "Please create an APIConfig with {{ api_config_init_fields | map("trim") | list | join(", ") }}, then pass it to the service.",
+            )
+
+        return data
+
+    def get_basic_auth(self):
+        auth = b64encode(f"{self.username}:{self.password}".encode()).decode()
+        return f"Basic {auth}"
+
+    def get_headers(self):
+        return {
+            "Content-Type": "application/json",
+            "Accept": "application/json",
+            "Authorization": self.get_basic_auth(),
+            {% for header, value in api_config_additional_headers.items() %}
+            "{{ header }}": {{ value }},
+            {% endfor %}
+        }
+
+class HTTPException(Exception):
+    def __init__(self, status_code: int, message: str):
+        self.status_code = status_code
+        self.message = message
+        super().__init__(f"{status_code} {message}")
+
+    def __str__(self):
+        return f"{self.status_code} {self.message}"

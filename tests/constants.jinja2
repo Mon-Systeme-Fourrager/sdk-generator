@@ -1,0 +1,10 @@
+{% set api_config_init_fields = {"username": "str", "password": "str", "wscid": "str"} %}
+
+{% macro get_api_config_init_fields() %}
+    {{ api_config_init_fields }}
+{% endmacro %}
+
+{% set api_config_additional_headers = {"WSCID": "self.wscid"} %}
+{% macro get_api_config_additional_headers() %}
+    {{ api_config_additional_headers }}
+{% endmacro %}

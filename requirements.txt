@@ -1,4 +1,4 @@
-openapi-python-generator
+openapi-python-generator @ git+https://github.com/Mon-Systeme-Fourrager/openapi-python-generator.git@2.0.0.fix-f-string
 pydantic
 requests
 click

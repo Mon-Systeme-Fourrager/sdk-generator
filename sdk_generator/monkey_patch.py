@@ -56,7 +56,7 @@ def generate_explicit_imports(output_path: Path) -> str:
         names = extract_exportable_names(api_config_path)
         if names:
             names_str = ", ".join(sorted(names))
-            imports.append(f"from .api_config import {names_str}  # noqa: F401")
+            imports.append(f"from .api_config import {names_str}")
 
     # Import from models module
     models_path = output_path / "models"
@@ -67,9 +67,7 @@ def generate_explicit_imports(output_path: Path) -> str:
             for module_name, names in model_exports.items():
                 if names:
                     names_str = ", ".join(names)
-                    imports.append(
-                        f"from .models.{module_name} import {names_str}  # noqa: F401"
-                    )
+                    imports.append(f"from .models.{module_name} import {names_str}")
 
         # Also check if models/__init__.py has explicit exports
         models_init = models_path / "__init__.py"
@@ -77,7 +75,7 @@ def generate_explicit_imports(output_path: Path) -> str:
             init_names = extract_exportable_names(models_init)
             if init_names:
                 names_str = ", ".join(sorted(init_names))
-                imports.append(f"from .models import {names_str}  # noqa: F401")
+                imports.append(f"from .models import {names_str}")
 
     # Import from services module
     services_path = output_path / "services"
@@ -88,9 +86,7 @@ def generate_explicit_imports(output_path: Path) -> str:
             for module_name, names in service_exports.items():
                 if names:
                     names_str = ", ".join(names)
-                    imports.append(
-                        f"from .services.{module_name} import {names_str}  # noqa: F401"
-                    )
+                    imports.append(f"from .services.{module_name} import {names_str}")
 
         # Also check if services/__init__.py has explicit exports
         services_init = services_path / "__init__.py"
@@ -98,9 +94,9 @@ def generate_explicit_imports(output_path: Path) -> str:
             init_names = extract_exportable_names(services_init)
             if init_names:
                 names_str = ", ".join(sorted(init_names))
-                imports.append(f"from .services import {names_str}  # noqa: F401")
+                imports.append(f"from .services import {names_str}")
 
-    return "\n".join(imports)
+    return ("# ruff: noqa: F401\n" if imports else "") + "\n".join(imports)
 
 
 def patch_init_file(output_path: Path) -> None:

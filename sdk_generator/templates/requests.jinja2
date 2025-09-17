@@ -42,7 +42,7 @@ def {{ operation_id }}(api_config_override : APIConfig | None = None{% if params
     if body is None:
         raise ValueError("Expected response body to be non-null")
 
-    return {{ return_type.type.converted_type }}(**body) if body is not None else {{ return_type.type.converted_type }}()
+    return {{ return_type.type.converted_type }}(**body)
     {%- else %}
     return [{{ return_type.list_type }}(**item) for item in body]
     {%- endif %}

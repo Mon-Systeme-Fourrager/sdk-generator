@@ -2,3 +2,4 @@ openapi-python-generator @ git+https://github.com/Mon-Systeme-Fourrager/openapi-
 pydantic
 requests
 click
+black

@@ -1,9 +1,10 @@
+import os
+import shutil
 import subprocess
 import sys
-import os
 import tempfile
-import shutil
 from pathlib import Path
+
 import yaml
 
 
@@ -66,6 +67,7 @@ class TestCLICommands:
                 "sdk_generator",
                 self.spec_file,
                 output_dir,
+                "--constants-template-path",
                 self.constants_file,
             ],
             capture_output=True,
@@ -99,6 +101,7 @@ class TestCLICommands:
                 "sdk_generator",
                 nonexistent_spec,
                 output_dir,
+                "--constants-template-path",
                 self.constants_file,
             ],
             capture_output=True,
@@ -134,6 +137,7 @@ class TestCLICommands:
                 "sdk_generator",
                 invalid_spec_file,
                 output_dir,
+                "--constants-template-path",
                 self.constants_file,
             ],
             capture_output=True,
@@ -159,6 +163,7 @@ class TestCLICommands:
                 "sdk_generator",
                 self.spec_file,
                 nested_output,
+                "--constants-template-path",
                 self.constants_file,
             ],
             capture_output=True,
@@ -265,6 +270,7 @@ class TestCLIOutput:
                 "sdk_generator",
                 self.spec_file,
                 output_dir,
+                "--constants-template-path",
                 self.constants_file,
             ],
             capture_output=True,
@@ -306,6 +312,7 @@ class TestCLIOutput:
                 "sdk_generator",
                 self.spec_file,
                 output_dir,
+                "--constants-template-path",
                 self.constants_file,
             ],
             capture_output=True,

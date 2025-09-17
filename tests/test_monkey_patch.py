@@ -1,10 +1,11 @@
 import pytest
+
 from sdk_generator.monkey_patch import (
-    extract_exportable_names,
-    get_module_exports,
-    generate_explicit_imports,
-    patch_init_file,
     apply_monkey_patch,
+    extract_exportable_names,
+    generate_explicit_imports,
+    get_module_exports,
+    patch_init_file,
 )
 
 
@@ -225,14 +226,10 @@ def create_user():
 
         # Check that all expected imports are present
         assert (
-            "from .api_config import APIConfig, HTTPException, configure_api  # noqa: F401"
-            in imports
+            "from .api_config import APIConfig, HTTPException, configure_api" in imports
         )
-        assert "from .models.user import User, UserProfile  # noqa: F401" in imports
-        assert (
-            "from .services.user_service import create_user, get_user  # noqa: F401"
-            in imports
-        )
+        assert "from .models.user import User, UserProfile" in imports
+        assert "from .services.user_service import create_user, get_user" in imports
 
     def test_generate_imports_api_config_only(self, tmp_path):
         """Test generating imports when only api_config exists."""
@@ -245,7 +242,7 @@ class APIConfig:
 
         imports = generate_explicit_imports(tmp_path)
 
-        assert imports == "from .api_config import APIConfig  # noqa: F401"
+        assert imports == "# ruff: noqa: F401\nfrom .api_config import APIConfig"
 
     def test_generate_imports_empty_package(self, tmp_path):
         """Test generating imports for empty package."""
@@ -278,7 +275,7 @@ from .models import *
 
         # Check that file was patched
         content = init_file.read_text()
-        assert "from .api_config import APIConfig  # noqa: F401" in content
+        assert "from .api_config import APIConfig" in content
         assert "from .api_config import *" not in content
 
     def test_patch_nonexistent_init_file(self, tmp_path):
@@ -321,7 +318,7 @@ class APIConfig:
 
         # Check that patch was applied
         content = init_file.read_text()
-        assert "from .api_config import APIConfig  # noqa: F401" in content
+        assert "from .api_config import APIConfig" in content
 
     def test_apply_patch_to_nonexistent_directory(self, tmp_path):
         """Test applying patch to nonexistent directory."""
@@ -414,17 +411,10 @@ from .services import *
         init_content = (package_path / "__init__.py").read_text()
 
         # Should have explicit imports
+        assert "from .api_config import APIConfig, HTTPException" in init_content
+        assert "from .models.user_models import CreateUserRequest, User" in init_content
         assert (
-            "from .api_config import APIConfig, HTTPException  # noqa: F401"
-            in init_content
-        )
-        assert (
-            "from .models.user_models import CreateUserRequest, User  # noqa: F401"
-            in init_content
-        )
-        assert (
-            "from .services.user_service import create_user, get_users  # noqa: F401"
-            in init_content
+            "from .services.user_service import create_user, get_users" in init_content
         )
 
         # Should not have wildcard imports
@@ -469,7 +459,4 @@ def test_function():
             pytest.fail("Generated __init__.py contains invalid Python syntax")
 
         # Verify expected content
-        assert (
-            "from .api_config import TestClass, test_function  # noqa: F401"
-            in init_content
-        )
+        assert "from .api_config import TestClass, test_function" in init_content

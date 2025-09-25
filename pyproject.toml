@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "sdk-generator"
-version = "1.1.0"
+version = "1.1.2"
 description = "A Python SDK generator from OpenAPI specifications."
 dynamic = ["dependencies"]
 authors = [{ name = "Maxime Toussaint", email = "maxime.toussaint@tlmgo.com" }]

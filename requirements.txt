@@ -3,3 +3,5 @@ pydantic
 requests
 click
 black
+ruff
+datamodel-code-generator

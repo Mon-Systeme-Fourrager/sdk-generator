@@ -328,6 +328,191 @@ class APIConfig:
         apply_monkey_patch(str(nonexistent_path))
 
 
+class TestMakeModelsIntoDir:
+    """Test the make_models_into_dir function."""
+
+    def test_split_models_with_dependencies(self, tmp_path):
+        """Test splitting models.py with model dependencies."""
+        from sdk_generator.monkey_patch import make_models_into_dir
+
+        # Create models.py with interdependent classes
+        models_file = tmp_path / "models.py"
+        models_content = """from typing import List, Optional
+from pydantic import BaseModel
+
+class User(BaseModel):
+    id: int
+    name: str
+    email: Optional[str] = None
+
+class Product(BaseModel):
+    id: int
+    name: str
+    price: float
+    owner: User
+
+class Order(BaseModel):
+    id: int
+    user: User
+    products: List[Product]
+    total: float
+"""
+        models_file.write_text(models_content)
+
+        # Apply the function
+        make_models_into_dir(tmp_path)
+
+        # Check that models directory was created
+        models_dir = tmp_path / "models"
+        assert models_dir.exists()
+        assert models_dir.is_dir()
+
+        # Check that original models.py was removed
+        assert not models_file.exists()
+
+        # Check individual model files
+        user_file = models_dir / "User.py"
+        product_file = models_dir / "Product.py"
+        order_file = models_dir / "Order.py"
+        init_file = models_dir / "__init__.py"
+
+        assert user_file.exists()
+        assert product_file.exists()
+        assert order_file.exists()
+        assert init_file.exists()
+
+        # Check User.py content (no dependencies)
+        user_content = user_file.read_text()
+        assert "class User(BaseModel):" in user_content
+        assert "from typing import List, Optional" in user_content
+        assert "from pydantic import BaseModel" in user_content
+        assert "from ." not in user_content  # No model imports
+
+        # Check Product.py content (depends on User)
+        product_content = product_file.read_text()
+        assert "class Product(BaseModel):" in product_content
+        assert "from .User import User" in product_content
+        assert "owner: User" in product_content
+
+        # Check Order.py content (depends on both User and Product)
+        order_content = order_file.read_text()
+        assert "class Order(BaseModel):" in order_content
+        assert "from .Product import Product" in order_content
+        assert "from .User import User" in order_content
+
+        # Check __init__.py content
+        init_content = init_file.read_text()
+        assert "from .Order import Order" in init_content
+        assert "from .Product import Product" in init_content
+        assert "from .User import User" in init_content
+        assert '"Order"' in init_content
+        assert '"Product"' in init_content
+        assert '"User"' in init_content
+
+    def test_split_models_with_utilities(self, tmp_path):
+        """Test splitting models.py with utility functions."""
+        from sdk_generator.monkey_patch import make_models_into_dir
+
+        models_file = tmp_path / "models.py"
+        models_content = """from typing import List
+from pydantic import BaseModel
+
+def utility_function():
+    return "utility"
+
+CONSTANT_VALUE = "test"
+
+class TestModel(BaseModel):
+    id: int
+    name: str
+"""
+        models_file.write_text(models_content)
+
+        make_models_into_dir(tmp_path)
+
+        models_dir = tmp_path / "models"
+        utils_file = models_dir / "_utils.py"
+        init_file = models_dir / "__init__.py"
+        test_model_file = models_dir / "TestModel.py"
+
+        # Check that utilities file was created
+        assert utils_file.exists()
+        utils_content = utils_file.read_text()
+        assert "def utility_function():" in utils_content
+        assert 'CONSTANT_VALUE = "test"' in utils_content
+        assert "from typing import List" in utils_content
+        assert "from pydantic import BaseModel" in utils_content
+
+        # Check that TestModel.py doesn't contain utilities
+        test_model_content = test_model_file.read_text()
+        assert "def utility_function():" not in test_model_content
+        assert "CONSTANT_VALUE" not in test_model_content
+        assert "class TestModel(BaseModel):" in test_model_content
+
+        # Check that __init__.py imports utilities
+        init_content = init_file.read_text()
+        assert "from . import _utils" in init_content
+        assert "from .TestModel import TestModel" in init_content
+
+    def test_split_models_no_classes(self, tmp_path):
+        """Test that function returns early if no classes found."""
+        from sdk_generator.monkey_patch import make_models_into_dir
+
+        models_file = tmp_path / "models.py"
+        models_content = """# Just imports and functions, no classes
+from typing import List
+
+def utility_function():
+    return "utility"
+
+CONSTANT = "value"
+"""
+        models_file.write_text(models_content)
+
+        make_models_into_dir(tmp_path)
+
+        # Should not create models directory if no classes
+        models_dir = tmp_path / "models"
+        assert not models_dir.exists()
+
+        # Original file should still exist
+        assert models_file.exists()
+
+    def test_split_models_already_directory(self, tmp_path):
+        """Test that function returns early if models directory already exists."""
+        from sdk_generator.monkey_patch import make_models_into_dir
+
+        models_file = tmp_path / "models.py"
+        models_file.write_text(
+            """
+class TestModel:
+    pass
+"""
+        )
+
+        # Create models directory first
+        models_dir = tmp_path / "models"
+        models_dir.mkdir()
+
+        make_models_into_dir(tmp_path)
+
+        # Original file should still exist
+        assert models_file.exists()
+        # Directory should be empty (no files created)
+        assert len(list(models_dir.iterdir())) == 0
+
+    def test_split_models_no_file(self, tmp_path):
+        """Test that function returns early if models.py doesn't exist."""
+        from sdk_generator.monkey_patch import make_models_into_dir
+
+        # Don't create models.py
+        make_models_into_dir(tmp_path)
+
+        # Should not create models directory
+        models_dir = tmp_path / "models"
+        assert not models_dir.exists()
+
+
 class TestIntegration:
     """Integration tests for the monkey patch functionality."""
 
@@ -460,3 +645,381 @@ def test_function():
 
         # Verify expected content
         assert "from .api_config import TestClass, test_function" in init_content
+
+    def test_complete_models_splitting_workflow(self, tmp_path):
+        """Test the complete workflow including models splitting and import fixing."""
+        # Create a realistic package structure with models.py
+        package_path = tmp_path / "test_sdk"
+        package_path.mkdir()
+
+        # Create models.py with interconnected models and utilities
+        models_file = package_path / "models.py"
+        models_content = '''from typing import List, Optional, Union
+from pydantic import BaseModel
+from datetime import datetime
+
+def validate_email(email: str) -> bool:
+    """Utility function to validate email."""
+    return "@" in email
+
+class BaseEntity(BaseModel):
+    """Base class for all entities."""
+    id: int
+    created_at: datetime
+    updated_at: Optional[datetime] = None
+
+class User(BaseEntity):
+    name: str
+    email: str
+    is_active: bool = True
+
+class Category(BaseEntity):
+    name: str
+    description: Optional[str] = None
+
+class Product(BaseEntity):
+    name: str
+    price: float
+    category: Category
+    owner: User
+
+class OrderItem(BaseModel):
+    product: Product
+    quantity: int
+    unit_price: float
+
+class Order(BaseEntity):
+    user: User
+    items: List[OrderItem]
+    total_amount: float
+    status: str = "pending"
+'''
+        models_file.write_text(models_content)
+
+        # Create services that use models
+        services_dir = package_path / "services"
+        services_dir.mkdir()
+        (services_dir / "__init__.py").write_text("")
+
+        user_service_file = services_dir / "user_service.py"
+        user_service_content = '''from typing import List, Optional
+from ..models import *
+
+def get_user(user_id: int) -> Optional[User]:
+    """Get user by ID."""
+    pass
+
+def create_user(name: str, email: str) -> User:
+    """Create a new user."""
+    pass
+
+def get_user_orders(user_id: int) -> List[Order]:
+    """Get all orders for a user."""
+    pass
+'''
+        user_service_file.write_text(user_service_content)
+
+        # Create __init__.py with wildcard imports
+        init_file = package_path / "__init__.py"
+        init_file.write_text(
+            """from .models import *
+from .services import *
+"""
+        )
+
+        # Apply the complete monkey patch
+        apply_monkey_patch(str(package_path))
+
+        # Verify models directory was created
+        models_dir = package_path / "models"
+        assert models_dir.exists()
+        assert not models_file.exists()  # Original should be gone
+
+        # Check individual model files exist
+        expected_files = [
+            "BaseEntity.py",
+            "User.py",
+            "Category.py",
+            "Product.py",
+            "OrderItem.py",
+            "Order.py",
+            "_utils.py",
+            "__init__.py",
+        ]
+
+        actual_files = [f.name for f in models_dir.iterdir()]
+        for expected_file in expected_files:
+            assert expected_file in actual_files, f"Missing {expected_file}"
+
+        # Verify model dependencies are correctly handled
+        product_content = (models_dir / "Product.py").read_text()
+        assert "from .Category import Category" in product_content
+        assert "from .User import User" in product_content
+        assert (
+            "from .BaseEntity import BaseEntity" not in product_content
+        )  # Should inherit BaseEntity
+
+        order_content = (models_dir / "Order.py").read_text()
+        assert "from .OrderItem import OrderItem" in order_content
+        assert "from .User import User" in order_content
+
+        orderitem_content = (models_dir / "OrderItem.py").read_text()
+        assert "from .Product import Product" in orderitem_content
+
+        # Verify utilities are in separate file
+        utils_content = (models_dir / "_utils.py").read_text()
+        assert "def validate_email" in utils_content
+        assert "from typing import List, Optional, Union" in utils_content
+
+        # Verify models __init__.py imports utilities
+        models_init_content = (models_dir / "__init__.py").read_text()
+        assert "from . import _utils" in models_init_content
+
+        # Verify all models are exported
+        for model in [
+            "BaseEntity",
+            "User",
+            "Category",
+            "Product",
+            "OrderItem",
+            "Order",
+        ]:
+            assert f"from .{model} import {model}" in models_init_content
+            assert f'"{model}"' in models_init_content
+
+        # Verify service imports were fixed
+        user_service_content_fixed = user_service_file.read_text()
+        assert "from ..models import *" not in user_service_content_fixed
+
+        # Should have specific imports for used models
+        expected_imports = [
+            "from ..models.User import User",
+            "from ..models.Order import Order",
+        ]
+        for expected_import in expected_imports:
+            assert expected_import in user_service_content_fixed
+
+        # Verify main __init__.py was updated
+        main_init_content = init_file.read_text()
+        assert "from .models import *" not in main_init_content
+        assert "from .services import *" not in main_init_content
+
+        # Should have explicit imports
+        model_imports = [
+            "from .models.BaseEntity import BaseEntity",
+            "from .models.Category import Category",
+            "from .models.Order import Order",
+            "from .models.OrderItem import OrderItem",
+            "from .models.Product import Product",
+            "from .models.User import User",
+        ]
+        for model_import in model_imports:
+            assert model_import in main_init_content
+
+        # Test that all generated code is syntactically valid
+        import ast
+
+        for py_file in models_dir.glob("*.py"):
+            content = py_file.read_text()
+            try:
+                ast.parse(content)
+            except SyntaxError as e:
+                pytest.fail(f"Generated file {py_file.name} has invalid syntax: {e}")
+
+        # Test main __init__.py syntax
+        try:
+            ast.parse(main_init_content)
+        except SyntaxError as e:
+            pytest.fail(f"Generated __init__.py has invalid syntax: {e}")
+
+        # Test service file syntax
+        try:
+            ast.parse(user_service_content_fixed)
+        except SyntaxError as e:
+            pytest.fail(f"Fixed service file has invalid syntax: {e}")
+
+
+class TestGenerateMissingModels:
+    """Test the generate_missing_models functionality."""
+
+    def test_generate_missing_models_from_services(self, tmp_path):
+        """Test generating missing model classes based on service type annotations."""
+        from sdk_generator.monkey_patch import generate_missing_models
+
+        # Create package structure
+        package_path = tmp_path / "test_sdk"
+        package_path.mkdir()
+
+        # Create models directory with existing Model
+        models_dir = package_path / "models"
+        models_dir.mkdir()
+        (models_dir / "__init__.py").write_text("")
+        (models_dir / "Model.py").write_text(
+            """from pydantic import BaseModel
+from typing import Any
+
+class Model(BaseModel):
+    __root__: Any
+"""
+        )
+
+        # Create services directory with service that references missing models
+        services_dir = package_path / "services"
+        services_dir.mkdir()
+        (services_dir / "__init__.py").write_text("")
+
+        service_content = '''from typing import Any
+from ..api_config import APIConfig, HTTPException
+
+def get_user(user_id: int) -> UserDetail:
+    """Get user by ID."""
+    pass
+
+def create_user(data: CreateUserRequest) -> UserDetail:
+    """Create a new user.""" 
+    pass
+
+def get_users() -> UsersList:
+    """Get all users."""
+    pass
+'''
+        (services_dir / "user_service.py").write_text(service_content)
+
+        # Apply generate_missing_models
+        generate_missing_models(package_path)
+
+        # Check that missing models were generated
+        expected_models = ["UserDetail", "CreateUserRequest", "UsersList"]
+        for model_name in expected_models:
+            model_file = models_dir / f"{model_name}.py"
+            assert model_file.exists(), f"Missing model file: {model_name}.py"
+
+            content = model_file.read_text()
+            assert f"class {model_name}(BaseModel):" in content
+            assert '"Auto-generated model class."' in content
+            assert "__root__: Any" in content
+
+        # Check that models/__init__.py was updated
+        init_content = (models_dir / "__init__.py").read_text()
+        for model_name in expected_models:
+            assert f"from .{model_name} import {model_name}" in init_content
+            assert f'"{model_name}"' in init_content
+
+        # Check that existing Model is still there
+        assert "from .Model import Model" in init_content
+
+    def test_generate_missing_models_filters_builtin_types(self, tmp_path):
+        """Test that builtin types and keywords are not generated as models."""
+        from sdk_generator.monkey_patch import generate_missing_models
+
+        package_path = tmp_path / "test_sdk"
+        package_path.mkdir()
+
+        models_dir = package_path / "models"
+        models_dir.mkdir()
+        (models_dir / "__init__.py").write_text("")
+
+        services_dir = package_path / "services"
+        services_dir.mkdir()
+
+        # Service with builtin types, keywords, and APIConfig that should be filtered out
+        service_content = """from typing import Any, Optional, List, Dict
+from ..api_config import APIConfig, HTTPException
+
+def get_data() -> Dict[str, Any]:
+    pass
+
+def process_data(data: List[str], config: APIConfig) -> Optional[bool]:
+    pass
+
+def get_none() -> None:
+    pass
+
+def get_valid_model() -> ValidModel:
+    pass
+"""
+        (services_dir / "test_service.py").write_text(service_content)
+
+        generate_missing_models(package_path)
+
+        # Only ValidModel should be generated
+        assert (models_dir / "ValidModel.py").exists()
+
+        # These should NOT be generated
+        should_not_exist = [
+            "Dict.py",
+            "str.py",
+            "Any.py",
+            "List.py",
+            "Optional.py",
+            "bool.py",
+            "None.py",
+            "APIConfig.py",
+            "HTTPException.py",
+        ]
+        for filename in should_not_exist:
+            assert not (
+                models_dir / filename
+            ).exists(), f"Should not generate: {filename}"
+
+    def test_generate_missing_models_no_services(self, tmp_path):
+        """Test that function handles missing services directory gracefully."""
+        from sdk_generator.monkey_patch import generate_missing_models
+
+        package_path = tmp_path / "test_sdk"
+        package_path.mkdir()
+
+        models_dir = package_path / "models"
+        models_dir.mkdir()
+        (models_dir / "__init__.py").write_text("")
+
+        # No services directory - should not crash
+        generate_missing_models(package_path)
+
+    def test_generate_missing_models_no_models_dir(self, tmp_path):
+        """Test that function handles missing models directory gracefully."""
+        from sdk_generator.monkey_patch import generate_missing_models
+
+        package_path = tmp_path / "test_sdk"
+        package_path.mkdir()
+
+        services_dir = package_path / "services"
+        services_dir.mkdir()
+
+        # No models directory - should not crash
+        generate_missing_models(package_path)
+
+    def test_generate_missing_models_existing_models_not_overwritten(self, tmp_path):
+        """Test that existing model files are not overwritten."""
+        from sdk_generator.monkey_patch import generate_missing_models
+
+        package_path = tmp_path / "test_sdk"
+        package_path.mkdir()
+
+        models_dir = package_path / "models"
+        models_dir.mkdir()
+        (models_dir / "__init__.py").write_text("")
+
+        # Create existing model
+        existing_model_content = """from pydantic import BaseModel
+
+class ExistingModel(BaseModel):
+    name: str
+    value: int
+"""
+        (models_dir / "ExistingModel.py").write_text(existing_model_content)
+
+        services_dir = package_path / "services"
+        services_dir.mkdir()
+
+        # Service that references existing model
+        service_content = """def get_existing() -> ExistingModel:
+    pass
+"""
+        (services_dir / "test_service.py").write_text(service_content)
+
+        generate_missing_models(package_path)
+
+        # Existing model should not be overwritten
+        actual_content = (models_dir / "ExistingModel.py").read_text()
+        assert actual_content == existing_model_content

@@ -1,4 +1,6 @@
+import io
 import os
+from contextlib import redirect_stderr
 from pathlib import Path
 from shutil import copy, rmtree
 
@@ -41,12 +43,13 @@ def generate_sdk(source, output, constants_template_path=None):
 
         # Try to generate models, but handle the case where no models are found
         try:
-            datamodel_generate(
-                Path(source),
-                output=Path(output) / "models.py",
-                field_constraints=True,
-                input_file_type="openapi",
-            )
+            some_stdout = io.StringIO()
+            with redirect_stderr(some_stdout):
+                datamodel_generate(
+                    Path(source),
+                    output=Path(output) / "models.py",
+                    field_constraints=True,
+                )
         except Error as e:
             if "Models not found in the input data" in str(e):
                 models_file = Path(output) / "models.py"
@@ -57,7 +60,7 @@ def generate_sdk(source, output, constants_template_path=None):
                 raise
 
         apply_monkey_patch(output)
-        os.system("black " + output + " --quiet")
-        os.system("ruff check --fix")
+        os.system(f"black {output} --quiet")
+        os.system(f"ruff check {output} --fix --silent")
     finally:
         (templates_path / "constants.jinja2").unlink()

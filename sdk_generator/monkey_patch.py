@@ -185,17 +185,24 @@ def make_models_into_dir(output_path: Path) -> None:
                 file_content += f"from .{dep} import {dep}\n"
             file_content += "\n"
 
-        # Add any other top-level content if needed
-        if other_content:
-            file_content += "\n".join(other_content) + "\n\n"
-
         file_content += class_content + "\n"
 
         with open(class_file, "w", encoding="utf-8") as f:
             f.write(file_content)
 
+    # Create utilities file if there's other content
+    if other_content:
+        utils_file = models_dir / "_utils.py"
+        utils_content = ""
+        if import_lines:
+            utils_content += import_lines + "\n\n"
+        utils_content += "\n".join(other_content) + "\n"
+
+        with open(utils_file, "w", encoding="utf-8") as f:
+            f.write(utils_content)
+
     # Create __init__.py that imports all classes
-    init_content = _generate_models_init(classes.keys())
+    init_content = _generate_models_init(classes.keys(), has_utils=bool(other_content))
     init_file = models_dir / "__init__.py"
     with open(init_file, "w", encoding="utf-8") as f:
         f.write(init_content)
@@ -277,7 +284,7 @@ def _extract_class_name_from_content(class_content: str) -> str:
     return ""
 
 
-def _generate_models_init(class_names: List[str]) -> str:
+def _generate_models_init(class_names: List[str], has_utils: bool = False) -> str:
     """Generate the content for the models/__init__.py file."""
     imports = []
     all_exports = []
@@ -289,6 +296,11 @@ def _generate_models_init(class_names: List[str]) -> str:
 
     content = "# ruff: noqa: F401\n"
     content += "\n".join(imports)
+
+    # Import utilities if they exist (but don't export them)
+    if has_utils:
+        content += "\nfrom . import _utils"
+
     if all_exports:
         content += "\n\n__all__ = [\n"
         for class_name in sorted(all_exports):

@@ -42,7 +42,10 @@ def generate_sdk(source, output, constants_template_path=None):
         # Try to generate models, but handle the case where no models are found
         try:
             datamodel_generate(
-                Path(source), output=Path(output) / "models.py", field_constraints=True
+                Path(source),
+                output=Path(output) / "models.py",
+                field_constraints=True,
+                input_file_type="openapi",
             )
         except Error as e:
             if "Models not found in the input data" in str(e):

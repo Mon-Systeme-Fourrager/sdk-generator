@@ -2,6 +2,7 @@ import os
 from pathlib import Path
 from shutil import copy, rmtree
 
+from datamodel_code_generator import Error
 from datamodel_code_generator import generate as datamodel_generate
 from openapi_python_generator.common import HTTPLibrary
 from openapi_python_generator.generate_data import generate_data
@@ -37,9 +38,21 @@ def generate_sdk(source, output, constants_template_path=None):
             library=HTTPLibrary.requests,
         )
         rmtree(Path(output) / "models")
-        datamodel_generate(
-            Path(source), output=Path(output) / "models.py", field_constraints=True
-        )
+
+        # Try to generate models, but handle the case where no models are found
+        try:
+            datamodel_generate(
+                Path(source), output=Path(output) / "models.py", field_constraints=True
+            )
+        except Error as e:
+            if "Models not found in the input data" in str(e):
+                models_file = Path(output) / "models.py"
+                models_file.write_text(
+                    "# No models found in the OpenAPI specification\n"
+                )
+            else:
+                raise
+
         apply_monkey_patch(output)
         os.system("black " + output + " --quiet")
         os.system("ruff check --fix")

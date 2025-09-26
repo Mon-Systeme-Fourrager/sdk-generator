@@ -2,6 +2,8 @@ import ast
 from pathlib import Path
 from typing import Dict, List, Set
 
+from rope.base.ast import parse
+
 
 def extract_exportable_names(file_path: Path) -> Set[str]:
     try:
@@ -125,24 +127,57 @@ def apply_monkey_patch(output_path: str) -> None:
     patch_init_file(output_dir)
 
 
-def make_models_into_dir(output_path: Path) -> None:
-    models_file = output_path / "models.py"
-    models_dir = output_path / "models"
+def _extract_components_with_rope_parsing(
+    content: str,
+) -> tuple[Dict[str, str], List[str], List[str]]:
+    """
+    Extract classes, imports, and other content using Rope's built-in AST functionality.
+    This leverages Rope's AST classes and get_source_segment for clean extraction.
+    """
+    try:
+        # Use Rope's AST parsing directly without Project
+        rope_ast = parse(content)
+        from rope.base.ast import ClassDef, Import, ImportFrom, get_source_segment
 
-    if not models_file.exists():
-        return
+        imports = []
+        other_content = []
+        classes = {}
 
-    if models_dir.exists():
-        return
+        # Use Rope's built-in node type checking instead of manual inspection
+        for node in rope_ast.body:
+            if isinstance(node, (Import, ImportFrom)):
+                # Use Rope's get_source_segment for clean extraction
+                import_text = get_source_segment(content, node)
+                imports.append(import_text)
+            elif isinstance(node, ClassDef):
+                # Extract class using Rope's built-in functionality
+                class_name = node.name
+                class_content = get_source_segment(content, node)
+                classes[class_name] = class_content
+            else:
+                # Everything else goes to other_content
+                other_text = get_source_segment(content, node)
+                other_content.append(other_text)
 
-    # Read the original models.py file
-    with open(models_file, "r", encoding="utf-8") as f:
-        content = f.read()
+        return classes, imports, other_content
 
-    # Parse the AST to extract classes and imports
-    tree = ast.parse(content)
+    except Exception:
+        # Fallback to basic AST parsing if Rope parsing fails
+        return _extract_components_basic_ast(content)
 
-    # Extract imports from the top of the file
+
+def _extract_components_basic_ast(
+    content: str,
+) -> tuple[Dict[str, str], List[str], List[str]]:
+    """
+    Fallback function using basic AST parsing when Rope analysis fails.
+    This maintains backward compatibility with the existing functionality.
+    """
+    try:
+        tree = ast.parse(content)
+    except SyntaxError:
+        return {}, [], []
+
     imports = []
     other_content = []
     classes = {}
@@ -150,138 +185,171 @@ def make_models_into_dir(output_path: Path) -> None:
     for node in tree.body:
         if isinstance(node, (ast.Import, ast.ImportFrom)):
             imports.append(ast.get_source_segment(content, node))
-        elif isinstance(node, (ast.ClassDef)):
+        elif isinstance(node, ast.ClassDef):
             class_name = node.name
             class_content = ast.get_source_segment(content, node)
             classes[class_name] = class_content
         else:
-            # Handle other top-level content (constants, functions, etc.)
             other_content.append(ast.get_source_segment(content, node))
+
+    return classes, imports, other_content
+
+
+def make_models_into_dir(output_path: Path) -> None:
+    """
+    Split a models.py file into individual class files using Rope's built-in AST functionality.
+    This uses Rope's excellent AST parsing and dependency analysis without the deprecated Project class.
+    """
+    models_file = output_path / "models.py"
+    models_dir = output_path / "models"
+
+    if not models_file.exists() or models_dir.exists():
+        return
+
+    # Read content and use Rope's AST parsing
+    content = models_file.read_text(encoding="utf-8")
+
+    # Extract classes using Rope's AST parsing
+    classes, imports, other_content = _extract_components_with_rope_parsing(content)
 
     if not classes:
         return
 
-    # Create the models directory
+    # Create models directory and process classes using Rope's capabilities
     models_dir.mkdir()
+    _create_class_files_with_rope(models_dir, classes, imports, content)
+    _create_utils_file(models_dir, other_content, imports)
+    _create_models_init(models_dir, classes.keys(), bool(other_content))
 
-    # Create individual files for each class
+    # Remove original file
+    models_file.unlink()
+
+
+def _extract_all_class_names(rope_ast) -> List[str]:
+    """Extract all class names from the AST."""
+    from rope.base.ast import ClassDef, walk
+
+    class_names = []
+    for node in walk(rope_ast):
+        if isinstance(node, ClassDef):
+            class_names.append(node.name)
+
+    return class_names
+
+
+def _create_class_files_with_rope(
+    models_dir: Path, classes: Dict[str, str], imports: List[str], full_content: str
+) -> None:
+    """Create individual class files using Rope's built-in dependency analysis."""
+    from rope.base.ast import parse
+
+    # Parse the full content once with Rope for better analysis
+    rope_ast = parse(full_content)
+    all_class_names = _extract_all_class_names(rope_ast)
+
     import_lines = "\n".join(imports) if imports else ""
 
     for class_name, class_content in classes.items():
-        # Use the exact class name as filename (no snake_case conversion)
         class_file = models_dir / f"{class_name}.py"
 
-        # Find model dependencies for this class
-        model_dependencies = _find_model_dependencies(class_content, classes.keys())
+        # Use Rope's enhanced dependency detection
+        dependencies = _find_model_dependencies(class_content, all_class_names)
 
-        # Create the file content with imports and the class
-        file_content = ""
+        content_parts = []
         if import_lines:
-            file_content += import_lines + "\n\n"
+            content_parts.append(import_lines)
 
-        # Add model imports if there are dependencies
-        if model_dependencies:
-            for dep in sorted(model_dependencies):
-                file_content += f"from .{dep} import {dep}\n"
-            file_content += "\n"
+        if dependencies:
+            for dep in sorted(dependencies):
+                content_parts.append(f"from .{dep} import {dep}")
 
-        file_content += class_content + "\n"
+        content_parts.append(class_content)
 
-        with open(class_file, "w", encoding="utf-8") as f:
-            f.write(file_content)
+        class_file.write_text("\n\n".join(content_parts) + "\n")
 
-    # Create utilities file if there's other content
-    if other_content:
-        utils_file = models_dir / "_utils.py"
-        utils_content = ""
-        if import_lines:
-            utils_content += import_lines + "\n\n"
-        utils_content += "\n".join(other_content) + "\n"
 
-        with open(utils_file, "w", encoding="utf-8") as f:
-            f.write(utils_content)
+def _create_utils_file(
+    models_dir: Path, other_content: List[str], imports: List[str]
+) -> None:
+    """Create utilities file if there's non-class content."""
+    if not other_content:
+        return
 
-    # Create __init__.py that imports all classes
-    init_content = _generate_models_init(classes.keys(), has_utils=bool(other_content))
+    utils_file = models_dir / "_utils.py"
+    content_parts = []
+
+    if imports:
+        content_parts.append("\n".join(imports))
+
+    content_parts.extend(other_content)
+
+    utils_file.write_text("\n\n".join(content_parts) + "\n")
+
+
+def _create_models_init(
+    models_dir: Path, class_names: List[str], has_utils: bool
+) -> None:
+    """Create the models/__init__.py file."""
     init_file = models_dir / "__init__.py"
-    with open(init_file, "w", encoding="utf-8") as f:
-        f.write(init_content)
-
-    # Remove the original models.py file
-    models_file.unlink()
+    content = _generate_models_init(class_names, has_utils)
+    init_file.write_text(content)
 
 
 def _find_model_dependencies(
     class_content: str, all_class_names: List[str]
 ) -> Set[str]:
-    """Find which other model classes this class depends on."""
-    dependencies = set()
-
-    # Parse the class content to find type annotations that reference other models
-    try:
-        class_tree = ast.parse(class_content)
-
-        for node in ast.walk(class_tree):
-            if isinstance(node, ast.AnnAssign) and node.annotation:
-                # Handle direct type annotations like: field: SomeModel
-                annotation_str = ast.get_source_segment(class_content, node.annotation)
-                if annotation_str:
-                    deps = _extract_model_names_from_annotation(
-                        annotation_str, all_class_names
-                    )
-                    dependencies.update(deps)
-            elif isinstance(node, ast.Subscript) and hasattr(node, "slice"):
-                # Handle generic types like List[SomeModel] or Optional[SomeModel]
-                slice_str = ast.get_source_segment(class_content, node.slice)
-                if slice_str:
-                    deps = _extract_model_names_from_annotation(
-                        slice_str, all_class_names
-                    )
-                    dependencies.update(deps)
-    except Exception:
-        # Fallback: simple string matching if AST parsing fails
-        for class_name in all_class_names:
-            if (
-                class_name in class_content
-                and class_name != _extract_class_name_from_content(class_content)
-            ):
-                dependencies.add(class_name)
-
-    return dependencies
+    """
+    Find model dependencies using Rope's AST parsing without Project.
+    Excludes inheritance, focuses on composition relationships.
+    """
+    # Use Rope's AST for better parsing without Project to avoid deprecation warnings
+    rope_ast = parse(class_content)
+    return _extract_dependencies_from_rope_ast(rope_ast, class_content, all_class_names)
 
 
-def _extract_model_names_from_annotation(
-    annotation: str, all_class_names: List[str]
+def _extract_dependencies_from_rope_ast(
+    rope_ast, content: str, all_class_names: List[str]
 ) -> Set[str]:
-    """Extract model class names from a type annotation string."""
+    """Extract dependencies using Rope's built-in AST walking functionality."""
+    from rope.base.ast import AnnAssign, ClassDef, Name, Subscript, walk
+
     dependencies = set()
+    inherited_classes = set()
 
-    # Remove common generic wrappers
-    annotation = (
-        annotation.replace("List[", "").replace("Optional[", "").replace("]", "")
-    )
-    annotation = annotation.replace("Union[", "").replace(" | ", ",")
+    # First pass: find inherited classes using Rope's walk function
+    for node in walk(rope_ast):
+        if isinstance(node, ClassDef):
+            # Extract base classes (inheritance) using Rope's AST nodes
+            for base in node.bases:
+                if isinstance(base, Name) and base.id in all_class_names:
+                    inherited_classes.add(base.id)
 
-    # Split by common separators and check each part
-    parts = [part.strip() for part in annotation.replace(",", " ").split()]
-
-    for part in parts:
-        if part in all_class_names:
-            dependencies.add(part)
+    # Second pass: find composition dependencies using Rope's AST traversal
+    for node in walk(rope_ast):
+        if isinstance(node, AnnAssign) and node.annotation:
+            # Handle type annotations using Rope's built-in functionality
+            annotation_names = _extract_names_from_rope_node(
+                node.annotation, all_class_names
+            )
+            dependencies.update(annotation_names - inherited_classes)
+        elif isinstance(node, Subscript):
+            # Handle generic types like List[SomeModel] using Rope's AST
+            slice_names = _extract_names_from_rope_node(node.slice, all_class_names)
+            dependencies.update(slice_names - inherited_classes)
 
     return dependencies
 
 
-def _extract_class_name_from_content(class_content: str) -> str:
-    """Extract the class name from class content."""
-    try:
-        tree = ast.parse(class_content)
-        for node in tree.body:
-            if isinstance(node, ast.ClassDef):
-                return node.name
-    except Exception:
-        pass
-    return ""
+def _extract_names_from_rope_node(node, all_class_names: List[str]) -> Set[str]:
+    """Extract class names from a Rope AST node using built-in traversal."""
+    from rope.base.ast import Name, walk
+
+    names = set()
+    for child_node in walk(node):
+        if isinstance(child_node, Name) and child_node.id in all_class_names:
+            names.add(child_node.id)
+
+    return names
 
 
 def _generate_models_init(class_names: List[str], has_utils: bool = False) -> str:
@@ -365,50 +433,29 @@ def _fix_single_service_file(service_file: Path, available_models: Set[str]) -> 
 
 
 def _find_used_models_in_service(content: str, available_models: Set[str]) -> Set[str]:
-    """Find which model classes are actually used in a service file."""
+    """Find which model classes are actually used in a service file - simplified version."""
     used_models = set()
 
-    try:
-        tree = ast.parse(content)
-
-        for node in ast.walk(tree):
-            # Check function return type annotations
-            if isinstance(node, ast.FunctionDef) and node.returns:
-                return_type = ast.get_source_segment(content, node.returns)
-                if return_type:
-                    models_in_annotation = _extract_model_names_from_annotation(
-                        return_type, available_models
-                    )
-                    used_models.update(models_in_annotation)
-
-            # Check function parameter type annotations
-            if isinstance(node, ast.FunctionDef):
-                for arg in node.args.args:
-                    if arg.annotation:
-                        param_type = ast.get_source_segment(content, arg.annotation)
-                        if param_type:
-                            models_in_annotation = _extract_model_names_from_annotation(
-                                param_type, available_models
-                            )
-                            used_models.update(models_in_annotation)
-
-            # Check variable annotations
-            if isinstance(node, ast.AnnAssign) and node.annotation:
-                var_type = ast.get_source_segment(content, node.annotation)
-                if var_type:
-                    models_in_annotation = _extract_model_names_from_annotation(
-                        var_type, available_models
-                    )
-                    used_models.update(models_in_annotation)
-
-            # Check direct usage of model names (for instantiation, etc.)
-            if isinstance(node, ast.Name) and node.id in available_models:
-                used_models.add(node.id)
-
-    except Exception:
-        # Fallback: simple string matching if AST parsing fails
-        for model in available_models:
-            if model in content:
-                used_models.add(model)
+    # Simple but effective approach: look for model names in the content
+    # This catches most usage patterns including annotations, instantiation, etc.
+    for model in available_models:
+        if _is_model_used_in_content(model, content):
+            used_models.add(model)
 
     return used_models
+
+
+def _is_model_used_in_content(model_name: str, content: str) -> bool:
+    """Check if a model is used in content using pattern matching."""
+    import re
+
+    # Patterns that indicate model usage
+    patterns = [
+        rf"\b{re.escape(model_name)}\b",  # Direct usage
+        rf":\s*{re.escape(model_name)}\b",  # Type annotation
+        rf"List\[{re.escape(model_name)}\]",  # List type
+        rf"Optional\[{re.escape(model_name)}\]",  # Optional type
+        rf"-> {re.escape(model_name)}\b",  # Return type
+    ]
+
+    return any(re.search(pattern, content) for pattern in patterns)

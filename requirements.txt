@@ -5,3 +5,4 @@ click
 black
 ruff
 datamodel-code-generator
+rope

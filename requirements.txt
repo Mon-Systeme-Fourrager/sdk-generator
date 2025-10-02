@@ -1,4 +1,4 @@
-openapi-python-generator @ git+https://github.com/MaxDude132/openapi-python-generator.git@2.1.1-parameters-fix
+openapi-python-generator
 pydantic
 requests
 click

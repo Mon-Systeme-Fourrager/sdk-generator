@@ -324,6 +324,10 @@ def _extract_dependencies_from_rope_ast(
                 if isinstance(base, Name) and base.id in all_class_names:
                     inherited_classes.add(base.id)
 
+    # Add inherited classes to dependencies (they need to be imported)
+    # Note: BaseModel from pydantic is handled separately in imports and doesn't need local import
+    dependencies.update(inherited_classes)
+
     # Second pass: find composition dependencies using Rope's AST traversal
     for node in walk(rope_ast):
         if isinstance(node, AnnAssign) and node.annotation:
@@ -331,11 +335,11 @@ def _extract_dependencies_from_rope_ast(
             annotation_names = _extract_names_from_rope_node(
                 node.annotation, all_class_names
             )
-            dependencies.update(annotation_names - inherited_classes)
+            dependencies.update(annotation_names)
         elif isinstance(node, Subscript):
             # Handle generic types like List[SomeModel] using Rope's AST
             slice_names = _extract_names_from_rope_node(node.slice, all_class_names)
-            dependencies.update(slice_names - inherited_classes)
+            dependencies.update(slice_names)
 
     return dependencies
 

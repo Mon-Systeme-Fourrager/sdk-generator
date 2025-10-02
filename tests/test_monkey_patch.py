@@ -756,8 +756,8 @@ from .services import *
         assert "from .Category import Category" in product_content
         assert "from .User import User" in product_content
         assert (
-            "from .BaseEntity import BaseEntity" not in product_content
-        )  # Should inherit BaseEntity
+            "from .BaseEntity import BaseEntity" in product_content
+        )  # Should import inherited BaseEntity
 
         order_content = (models_dir / "Order.py").read_text()
         assert "from .OrderItem import OrderItem" in order_content

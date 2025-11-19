@@ -225,7 +225,7 @@ class TestCLIOutput:
                         "requestBody": {
                             "content": {
                                 "application/json": {
-                                    "schema": {"$ref": "#/components/schemas/User"}
+                                    "schema": {"$ref": "#/components/schemas/UserTypes"}
                                 }
                             }
                         },
@@ -243,7 +243,22 @@ class TestCLIOutput:
                             "email": {"type": "string", "format": "email"},
                         },
                         "required": ["name", "email"],
-                    }
+                    },
+                    "User2": {
+                        "type": "object",
+                        "properties": {
+                            "id": {"type": "integer"},
+                            "name": {"type": "string"},
+                            "username": {"type": "string"},
+                        },
+                        "required": ["name", "username"],
+                    },
+                    "UserTypes": {
+                        "anyOf": [
+                            {"$ref": "#/components/schemas/User"},
+                            {"$ref": "#/components/schemas/User2"},
+                        ]
+                    },
                 }
             },
         }

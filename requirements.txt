@@ -1,5 +1,5 @@
 openapi-python-generator
-pydantic
+pydantic>=2.0.0
 requests
 click
 black

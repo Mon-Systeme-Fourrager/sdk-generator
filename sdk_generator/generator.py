@@ -4,7 +4,10 @@ from contextlib import redirect_stderr
 from pathlib import Path
 from shutil import copy, rmtree
 
-from datamodel_code_generator import Error
+from datamodel_code_generator import (
+    DataModelType,
+    Error,
+)
 from datamodel_code_generator import generate as datamodel_generate
 from openapi_python_generator.common import HTTPLibrary
 from openapi_python_generator.generate_data import generate_data
@@ -49,6 +52,7 @@ def generate_sdk(source, output, constants_template_path=None):
                     Path(source),
                     output=Path(output) / "models.py",
                     field_constraints=True,
+                    output_model_type=DataModelType.PydanticV2BaseModel,
                 )
         except Error as e:
             if "Models not found in the input data" in str(e):

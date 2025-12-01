@@ -33,7 +33,7 @@ def {{ operation_id }}(api_config_override : APIConfig{% if not api_config_init_
         {% endif %}
     )
     if response.status_code != {{ return_type.status_code }}:
-        raise HTTPException(response.status_code, f'{{ operation_id }} failed with status code: {response.status_code}')
+        raise HTTPException(response.status_code, f'{{ operation_id }} failed with status code: {response.status_code}', server_response=response.text)
     {% if return_type.type is not none and return_type.type.converted_type is not none %}else:
         {# Conditional body parsing: avoid calling .json() for 204 #}
         body = None if {{ return_type.status_code }} == 204 else response.json()

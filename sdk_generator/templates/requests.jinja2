@@ -28,7 +28,7 @@ def {{ operation_id }}(api_config_override : APIConfig{% if not api_config_init_
         {% if use_orjson %}
         content=orjson.dumps({{ body_param }})
         {% else %}
-        json=data.model_dump("json")
+        json=data.model_dump(mode="json")
         {% endif %}
         {% endif %}
     )

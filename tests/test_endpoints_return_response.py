@@ -155,7 +155,10 @@ class TestEndpointsReturnResponse:
         service_content = self._get_service_content(output_dir)
 
         assert "def downloadFile(" in service_content
-        assert "-> Response" in service_content
+        assert (
+            "-> Response" in service_content
+            or "-> requests.Response" in service_content
+        )
 
         lines = service_content.split("\n")
         in_download_file = False
@@ -192,10 +195,10 @@ class TestEndpointsReturnResponse:
 
         for line in lines:
             if "def downloadFile(" in line:
-                if "-> Response" in line:
+                if "-> Response" in line or "-> requests.Response" in line:
                     download_returns_response = True
             elif "def getStatus(" in line:
-                if "-> Response" in line:
+                if "-> Response" in line or "-> requests.Response" in line:
                     status_returns_response = True
 
         assert (
@@ -233,12 +236,12 @@ class TestEndpointsReturnResponse:
 
         for line in lines:
             if "def listUsers(" in line:
-                if "-> Response" in line:
+                if "-> Response" in line or "-> requests.Response" in line:
                     list_users_return_type = "Response"
                 elif "-> List[User]" in line or "-> list[User]" in line:
                     list_users_return_type = "List[User]"
             elif "def downloadFile(" in line:
-                if "-> Response" in line:
+                if "-> Response" in line or "-> requests.Response" in line:
                     download_file_return_type = "Response"
 
         assert (

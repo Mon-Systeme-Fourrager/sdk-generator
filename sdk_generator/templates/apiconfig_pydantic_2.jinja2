@@ -35,16 +35,18 @@ class APIConfig(BaseModel):
             )
 
         return data
-
+{% if "username" in api_config_init_fields and "password" in api_config_init_fields %}
     def get_basic_auth(self):
         auth = b64encode(f"{self.username}:{self.password}".encode()).decode()
         return f"Basic {auth}"
-
+{% endif %}
     def get_headers(self):
         return {
             "Content-Type": "application/json",
             "Accept": "application/json",
+{% if "username" in api_config_init_fields and "password" in api_config_init_fields %}
             "Authorization": self.get_basic_auth(),
+{% endif %}
             {% for header, value in api_config_additional_headers.items() %}
             "{{ header }}": {{ value }},
             {% endfor %}

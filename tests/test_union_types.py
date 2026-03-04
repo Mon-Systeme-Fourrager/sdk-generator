@@ -208,6 +208,12 @@ def test_union_type_runtime_validation(test_spec_with_union):
 
         import sys
 
+        modules_to_remove = [
+            key for key in sys.modules.keys() if key.startswith("models")
+        ]
+        for mod in modules_to_remove:
+            del sys.modules[mod]
+
         sys.path.insert(0, str(output_dir))
 
         try:
@@ -233,3 +239,8 @@ def test_union_type_runtime_validation(test_spec_with_union):
 
         finally:
             sys.path.remove(str(output_dir))
+            modules_to_remove = [
+                key for key in sys.modules.keys() if key.startswith("models")
+            ]
+            for mod in modules_to_remove:
+                del sys.modules[mod]

@@ -1,4 +1,3 @@
 -r requirements.txt
 
 pytest
-sdk_generator @ git+https://github.com/Mon-Systeme-Fourrager/sdk-generator.git

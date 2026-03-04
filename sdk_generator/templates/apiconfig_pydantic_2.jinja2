@@ -35,25 +35,28 @@ class APIConfig(BaseModel):
             )
 
         return data
-
+{% if "username" in api_config_init_fields and "password" in api_config_init_fields %}
     def get_basic_auth(self):
         auth = b64encode(f"{self.username}:{self.password}".encode()).decode()
         return f"Basic {auth}"
-
+{% endif %}
     def get_headers(self):
         return {
             "Content-Type": "application/json",
             "Accept": "application/json",
+{% if "username" in api_config_init_fields and "password" in api_config_init_fields %}
             "Authorization": self.get_basic_auth(),
+{% endif %}
             {% for header, value in api_config_additional_headers.items() %}
             "{{ header }}": {{ value }},
             {% endfor %}
         }
 
 class HTTPException(Exception):
-    def __init__(self, status_code: int, message: str):
+    def __init__(self, status_code: int, message: str, server_response: str | None = None):
         self.status_code = status_code
         self.message = message
+        self.server_response = server_response
         super().__init__(f"{status_code} {message}")
 
     def __str__(self):

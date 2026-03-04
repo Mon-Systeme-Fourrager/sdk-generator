@@ -19,6 +19,9 @@ def generate_sdk(source, output, constants_template_path=None):
     output_path = Path(output)
     if output_path.exists():
         rmtree(output_path)
+
+    (Path(output) / "py.typed").touch()
+
     base_path = Path(__file__).parent
     templates_path = base_path / Path("templates")
 
@@ -62,7 +65,6 @@ def generate_sdk(source, output, constants_template_path=None):
                 )
             else:
                 raise
-
         apply_monkey_patch(output)
         os.system(f"black {output} --quiet")
         os.system(f"ruff check {output} --fix --silent")

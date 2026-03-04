@@ -20,6 +20,9 @@ def generate_sdk(source, output, constants_template_path=None):
     if output_path.exists():
         rmtree(output_path)
 
+    Path(output).mkdir(parents=True)
+
+    # Add the typing file
     (Path(output) / "py.typed").touch()
 
     base_path = Path(__file__).parent

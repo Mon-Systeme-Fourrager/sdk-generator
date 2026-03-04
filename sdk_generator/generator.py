@@ -19,6 +19,12 @@ def generate_sdk(source, output, constants_template_path=None):
     output_path = Path(output)
     if output_path.exists():
         rmtree(output_path)
+
+    output_path.mkdir(parents=True)
+
+    # Add the typing file
+    (output_path / "py.typed").touch()
+
     base_path = Path(__file__).parent
     templates_path = base_path / Path("templates")
 
@@ -42,7 +48,7 @@ def generate_sdk(source, output, constants_template_path=None):
             custom_template_path=templates_path,
             library=HTTPLibrary.requests,
         )
-        rmtree(Path(output) / "models")
+        rmtree(output_path / "models")
 
         # Try to generate models, but handle the case where no models are found
         try:
@@ -50,19 +56,18 @@ def generate_sdk(source, output, constants_template_path=None):
             with redirect_stderr(some_stdout):
                 datamodel_generate(
                     Path(source),
-                    output=Path(output) / "models.py",
+                    output=output_path / "models.py",
                     field_constraints=True,
                     output_model_type=DataModelType.PydanticV2BaseModel,
                 )
         except Error as e:
             if "Models not found in the input data" in str(e):
-                models_file = Path(output) / "models.py"
+                models_file = output_path / "models.py"
                 models_file.write_text(
                     "# No models found in the OpenAPI specification\n"
                 )
             else:
                 raise
-
         apply_monkey_patch(output)
         os.system(f"black {output} --quiet")
         os.system(f"ruff check {output} --fix --silent")

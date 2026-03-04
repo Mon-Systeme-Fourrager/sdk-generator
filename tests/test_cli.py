@@ -85,6 +85,8 @@ class TestCLICommands:
         generated_files = list(Path(output_dir).rglob("*"))
         assert len(generated_files) > 0, "No files were generated"
 
+        assert Path(output_dir) / "py.typed" in generated_files, "py.typed file was not generated"
+
         # Clean up the output directory
         if os.path.exists(output_dir):
             shutil.rmtree(output_dir)
